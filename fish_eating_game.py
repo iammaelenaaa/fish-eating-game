@@ -29,6 +29,9 @@ clock = pygame.time.Clock()
 # Font for displaying score and level
 font = pygame.font.Font(None, 36)
 
+# Load sound for level completion
+level_up_sound = pygame.mixer.Sound("level_up.wav")
+
 # Fish class
 class Fish(pygame.sprite.Sprite):
     def __init__(self, x, y, size, color):
@@ -78,19 +81,24 @@ def main():
     level = 1
     target_color = COLORS[0]
 
-    # Generate small fish
+    # Generate small fish with non-overlapping logic
     def spawn_small_fish():
         small_fish_group.empty()
         all_sprites.empty()
         all_sprites.add(player)
         for _ in range(level * 5):
-            x = random.randint(20, WIDTH - 20)
-            y = random.randint(20, HEIGHT - 20)
-            size = random.randint(10, player.size - 5)
-            color = random.choice(COLORS)
-            small_fish = SmallFish(x, y, size, color)
-            small_fish_group.add(small_fish)
-            all_sprites.add(small_fish)
+            while True:
+                x = random.randint(50, WIDTH - 50)
+                y = random.randint(50, HEIGHT - 50)
+                size = random.randint(10, player.size - 5)
+                color = random.choice(COLORS)
+
+                # Create a new fish and check overlap
+                small_fish = SmallFish(x, y, size, color)
+                if not any(fish.rect.colliderect(small_fish.rect) for fish in small_fish_group):
+                    small_fish_group.add(small_fish)
+                    all_sprites.add(small_fish)
+                    break
 
     spawn_small_fish()
 
@@ -130,6 +138,7 @@ def main():
             else:
                 target_color = random.choice(COLORS)  # Choose a specific color for higher levels
             spawn_small_fish()
+            level_up_sound.play()  # Play level-up sound
 
         # Clear screen
         screen.fill(WHITE)
@@ -140,10 +149,13 @@ def main():
         # Display score and level
         score_text = font.render(f"Score: {score}", True, BLACK)
         level_text = font.render(f"Level: {level}", True, BLACK)
-        target_text = font.render(f"Target Color: {target_color}", True, target_color)
         screen.blit(score_text, (10, 10))
         screen.blit(level_text, (10, 50))
-        screen.blit(target_text, (10, 90))
+
+        # Draw target color block
+        target_block = pygame.Surface((50, 50))
+        target_block.fill(target_color)
+        screen.blit(target_block, (10, 90))
 
         # Update the display
         pygame.display.flip()
