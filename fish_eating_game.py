@@ -5,17 +5,22 @@ import sys
 # Initialize pygame
 pygame.init()
 
-# Screen dimensions
-WIDTH, HEIGHT = 800, 600
-
 # Colors
+COLORS = [
+    (255, 179, 186),  # #ffb3ba
+    (255, 223, 186),  # #ffdfba
+    (255, 255, 186),  # #ffffba
+    (186, 255, 201),  # #baffc9
+    (186, 225, 255),  # #bae1ff
+]
 WHITE = (255, 255, 255)
 BLACK = (0, 0, 0)
 BLUE = (0, 0, 255)
-RED = (255, 0, 0)
 
-# Create the screen
-screen = pygame.display.set_mode((WIDTH, HEIGHT))
+# Create the screen (scalable to fullscreen)
+info = pygame.display.Info()
+WIDTH, HEIGHT = info.current_w, info.current_h
+screen = pygame.display.set_mode((WIDTH, HEIGHT), pygame.FULLSCREEN)
 pygame.display.set_caption("Fish Eating Game")
 
 # Clock for controlling the frame rate
@@ -32,6 +37,7 @@ class Fish(pygame.sprite.Sprite):
         self.image.fill(color)
         self.rect = self.image.get_rect(center=(x, y))
         self.size = size
+        self.speed = 5
 
     def grow(self):
         self.size += 5
@@ -39,13 +45,25 @@ class Fish(pygame.sprite.Sprite):
         self.image.fill(BLUE)
         self.rect = self.image.get_rect(center=self.rect.center)
 
+    def update(self):
+        keys = pygame.key.get_pressed()
+        if keys[pygame.K_UP] and self.rect.top > 0:
+            self.rect.y -= self.speed
+        if keys[pygame.K_DOWN] and self.rect.bottom < HEIGHT:
+            self.rect.y += self.speed
+        if keys[pygame.K_LEFT] and self.rect.left > 0:
+            self.rect.x -= self.speed
+        if keys[pygame.K_RIGHT] and self.rect.right < WIDTH:
+            self.rect.x += self.speed
+
 # Small fish class
 class SmallFish(pygame.sprite.Sprite):
-    def __init__(self, x, y, size):
+    def __init__(self, x, y, size, color):
         super().__init__()
         self.image = pygame.Surface((size, size))
-        self.image.fill(RED)
+        self.image.fill(color)
         self.rect = self.image.get_rect(center=(x, y))
+        self.color = color
 
 # Main game function
 def main():
@@ -58,15 +76,19 @@ def main():
     # Initialize variables
     score = 0
     level = 1
-    speed = 5
+    target_color = COLORS[0]
 
     # Generate small fish
     def spawn_small_fish():
+        small_fish_group.empty()
+        all_sprites.empty()
+        all_sprites.add(player)
         for _ in range(level * 5):
             x = random.randint(20, WIDTH - 20)
             y = random.randint(20, HEIGHT - 20)
             size = random.randint(10, player.size - 5)
-            small_fish = SmallFish(x, y, size)
+            color = random.choice(COLORS)
+            small_fish = SmallFish(x, y, size, color)
             small_fish_group.add(small_fish)
             all_sprites.add(small_fish)
 
@@ -78,32 +100,35 @@ def main():
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
                 running = False
+            if event.type == pygame.KEYDOWN:
+                if event.key == pygame.K_ESCAPE:  # Exit fullscreen
+                    pygame.quit()
+                    sys.exit()
 
-        # Handle player movement
-        keys = pygame.key.get_pressed()
-        if keys[pygame.K_UP]:
-            player.rect.y -= speed
-        if keys[pygame.K_DOWN]:
-            player.rect.y += speed
-        if keys[pygame.K_LEFT]:
-            player.rect.x -= speed
-        if keys[pygame.K_RIGHT]:
-            player.rect.x += speed
+        # Update player
+        player.update()
 
         # Check collisions
         for fish in small_fish_group:
             if player.rect.colliderect(fish.rect):
-                if player.size > fish.rect.width:
+                if fish.color == target_color:
                     small_fish_group.remove(fish)
                     all_sprites.remove(fish)
                     score += 1
                     player.grow()
                 else:
-                    running = False
+                    # Reset the level if the wrong color is touched
+                    spawn_small_fish()
+                    score = max(score - level, 0)
+                    break
 
-        # Check if all small fish are eaten
-        if len(small_fish_group) == 0:
+        # Check if all target fish are eaten
+        if all(fish.color != target_color for fish in small_fish_group):
             level += 1
+            if level <= 5:
+                target_color = COLORS[0]  # Eat all fish for levels 1-5
+            else:
+                target_color = random.choice(COLORS)  # Choose a specific color for higher levels
             spawn_small_fish()
 
         # Clear screen
@@ -115,8 +140,10 @@ def main():
         # Display score and level
         score_text = font.render(f"Score: {score}", True, BLACK)
         level_text = font.render(f"Level: {level}", True, BLACK)
+        target_text = font.render(f"Target Color: {target_color}", True, target_color)
         screen.blit(score_text, (10, 10))
         screen.blit(level_text, (10, 50))
+        screen.blit(target_text, (10, 90))
 
         # Update the display
         pygame.display.flip()
